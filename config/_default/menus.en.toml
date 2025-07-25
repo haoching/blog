@@ -1,0 +1,17 @@
+[[main]]
+none = "none"
+
+[[main]]
+identifier = "github2"
+pre = "github"
+url = "https://github.com/haoching"
+weight = 40
+
+[[main]]
+pageRef = "posts"
+name = "Blog"
+identifier = "rdz0EovhsQ"
+weight = 30
+
+[[footer]]
+none = "none"

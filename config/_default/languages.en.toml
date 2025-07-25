@@ -1,0 +1,20 @@
+disabled = false
+languageCode = "en"
+languageName = "English"
+weight = 1
+title = "haoching's site"
+
+[params]
+displayName = "EN"
+isoCode = "en"
+rtl = false
+dateFormat = "2 January 2006"
+
+[params.author]
+  name = "haoching"
+  headline = "🔧施工中..."
+   links = [
+     { link = "https://chang929.site" },
+     { github = "https://github.com/haoching" },
+     { instagram = "https://www.instagram.com/haoching929/" }
+   ]
