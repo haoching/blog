@@ -5,13 +5,13 @@ draft: false
 description: "a description"
 tags: ["ctf", "writeups"]
 ---
-# 2025 ais3 pre-exam write up
+# 2025 ais3 pre-exam write-up
 
 result:
 ![alt text](2025-05-26_170023.png)
 這次解的題目最後全變 100 分 QAQ
 
-題目都忘記截圖 ╯︿╰ 
+題目都忘記截圖只能看解法猜題目 ╯︿╰ 
 
 ## login screen 1
 
