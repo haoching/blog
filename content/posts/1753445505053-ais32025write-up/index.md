@@ -7,30 +7,36 @@ tags: ["ctf", "writeups"]
 ---
 # 2025 ais3 pre-exam write up
 
+result:
+![alt text](2025-05-26_170023.png)
+這次解的題目最後全變 100 分 QAQ
+
+題目都忘記截圖 ╯︿╰ 
+
 ## login screen 1
 
-於login page 嘗試 admin/admin 成功登入
+於 login page 嘗試弱密碼 admin/admin 成功登入
 觀察 dockr-compose.yml
-![image](https://hackmd.io/_uploads/ByiXR2Vfgl.png)
+![image](./login_screen-1.png)
 發現 db 可以訪問
-下載後得到 2fa code
-![image](https://hackmd.io/_uploads/rkluRnVzgl.png)
+下載 db 找到 2fa code
+![image](./login_screen-2.png)
 成功登入取得 flag
 
 ## tomorin db
 
 直接進入 /flag 會被 redirect
 
-將`/` URL encode，進入
-chals1.ais3.org:30000/..%2fflag
-取得flag
+將`/` URL encode 成功 bypass，進入
+`chals1.ais3.org:30000/..%2fflag`
+取得 flag
 
 ## Welcome to the World of Ave Mujica
 
 - 動態分析發現可以 burrfer overflow
 - 丟進 ida 發現 0x401256 有一個 shell
 
-![image](https://hackmd.io/_uploads/H1SD4aVMxe.png)
+![image](./avemujica-1.png)
 
 - 使用 cyclic 計算 offset
 將 return address 覆蓋為 0x4012D6 取得 shell
@@ -53,29 +59,28 @@ g = pwn.cyclic_gen()
 conn.sendline(g.get(168) + pwn.p64(0x4012D6))
 ```
 
-## raman CTF
+## Raman CTF
 
-掃描 qrcode 將發票號碼填入發票 app 在使用 google map 搜尋地址取得flag
+掃描發票上 qrcode 將發票號碼填入發票 app 取得發票資訊，再使用 google map 搜尋地址取得 flag
 
-![image](https://hackmd.io/_uploads/BJbASpNGlx.png)
+![image](./raman-1.png)
 
 
 ## AIS3 Tiny Server - Web / Misc
 
-題目提到root directory嘗試進入 chals1.ais3.org:20616//
-成功取得flag
-![image](https://hackmd.io/_uploads/HyBzwTEfge.png)
+題目提到 root directory 嘗試進入 chals1.ais3.org:20616//
+成功 LFI 訪問根目錄取得 flag
+![image](./tiny-1.png)
 取得flag
 
 ## Welcome
 
-照著打
-![image](https://hackmd.io/_uploads/Sy5KPaVfxe.png)
+沒辦法直接複製，直接打，懶得找其他方法。
+![image](./welcome.png)
 
 ## Stream
 
-可以暴力嘗試 a 並檢查 b 是否為完全平方數可以取得每輪使用的隨機數
-因為 getrandbits() 使用 mt19937 ，只要取得 634*32bits 的已知隨機數可以預測後續生成之隨機數。
+可以暴力遍歷 a 檢查 b 是否為完全平方數得到每輪使用的隨機數，因為 getrandbits() 使用 mt19937 ，只要取得 634*32bits 的已知隨機數可以預測後續生成之隨機數。
 
 ```python!
 from random import getrandbits
@@ -101,16 +106,17 @@ craker.check()
         
 print((l[80]^craker.rnd.getrandbits(256)**2).to_bytes(32, 'big'))
 ```
-![image](https://hackmd.io/_uploads/r1LZ_aEGxg.png)
+執行腳本取得 flag
+![image](./stream.png)
 
 ## AIS3 Tiny Server - Reverse
 
-丟進 IDA 可以看到 sub_1E20() 這個function會檢查flag
+丟進 IDA 可以看到 `sub_1E20()` 這個 function 會檢查 flag
 
-![image](https://hackmd.io/_uploads/r1iXpTEGlg.png)
-![image](https://hackmd.io/_uploads/HkbLTT4Mxe.png)
+![image](./tinyserver_reverse-1.png)
+![image](./tinyserver_reverse-2.png)
 
-寫腳本還原 flag
+撰寫腳本還原 flag
 ```python
 
 import struct
@@ -163,22 +169,22 @@ if __name__ == "__main__":
     print(f"flag: {flag}")
 ```
 取得flag
-![image](https://hackmd.io/_uploads/BJVHCa4Mel.png)
+![image](./tinyserver_reverse-3.png)
 
 ## A simple snake game
 
-逆向發現有一個檢查分數和關卡的地方
-![image](https://hackmd.io/_uploads/r1izfCEMle.png)
-patch 成 jg
-![image](https://hackmd.io/_uploads/rkcAMANfle.png)
+丟 IDA 逆向找到有一個檢查分數和關卡的地方
+![image](./snake-1.png)
+patch 成 jg 跳過檢查
+![image](./snake-2.png)
 進入遊戲取得 flag
-![image](https://hackmd.io/_uploads/S1yEzANGll.png)
+![image](./snake-3.png)
 
 ## web flag checker
 
 從 source 可以看到 wasm
 有一個函式叫 flag checker
-![image](https://hackmd.io/_uploads/SJlC7C4fxg.png)
+![image](./flag_checker-1.png)
 丟給 claude 幫忙 reverse 並撰寫腳本
 
 ```python!
@@ -228,14 +234,9 @@ if __name__ == "__main__":
 
 ```
 
-![image](https://hackmd.io/_uploads/B13AI04Glx.png)
+![image](./flag_checker-2.png)
 
-組合 flag 得到 AIS3{W4SM_R3v3rsing_w17h_g0_4pp_39229dd}
+組合 flag 得到 `AIS3{W4SM_R3v3rsing_w17h_g0_4pp_39229dd}`
 
 ---
-
-## 心得
-
-總覺的今年特別捲，每題打完過沒多久就變100分到底想怎樣。
-
 
