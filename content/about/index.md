@@ -1,7 +1,7 @@
 ---
 title: "關於我"
 page: "about"
-description: "haoching — NTHU CS，關注 Web Security、Reverse Engineering、Cryptography 與 Homelab。"
+description: "haoching"
 showDate: false
 showAuthor: false
 showReadingTime: false
@@ -10,45 +10,26 @@ showTableOfContents: true
 draft: false
 ---
 
-{{< figure src="img/rabbit.jpg" alt="一隻灰色兔子" >}}
+{{< figure src="img/rabbit.jpg" alt="rabbit" >}}
 
-嗨，我是 **haoching**，目前就讀國立清華大學資訊工程學系（NTHU CS）。
+一個因為染上劍道，變得很少在資訊圈活動的學生，[734m_N4M3_h3r3](https://ctftime.org/team/301288) 成員。大概這樣，想不到要介紹甚麼。
 
-我主要關注 **Web Security、Reverse Engineering** 與 **Cryptography**，平常也喜歡折騰 Homelab、自架服務和網路架構。這個網站用來整理資安學習、CTF 解題，以及實際架設服務時留下的技術紀錄。
+因為沒什麼常用的綽號，所以在各個地方的 ID 都不一樣。反正比賽也沒在 leaderboard 前面出現，等到常打進前幾名，再煩惱要叫甚麼名字好了……
 
-## 關注方向
+## 經歷
 
-- Web Security
-- Reverse Engineering
-- Cryptography
-- Homelab、Linux、網路與自架服務
-
-## CTF
-
-目前與 **734m_N4M3_h3r3** 一起參與 CTF；CTFtime 將這個隊伍列為臺灣的 Academic team。
-
-- [734m_N4M3_h3r3 — CTFtime](https://ctftime.org/team/301288)
-- AEGIS 神盾盃 2024：第 7 名
-- AEGIS 神盾盃 2025：第 5 名
-
-## AIS3
-
-- AIS3 2024：最佳專題 — **RASP: RASP A Safer Python**
-- AIS3 2025：最佳專題 — **進階資安攻防競技**
-- AIS3 Junior 2026：助教（TA）
-
-## Homelab
-
-我在自己的 Homelab 裡使用 Proxmox、OpenWrt、VLAN、Docker 與 Cloudflare，練習網路分段、自架服務、備份還原和自動化部署。這個 Blog 本身也是其中一個實作：文章在 HedgeDoc 編輯，經 GitHub Actions 建置 Hugo，再部署到 Cloudflare。
-
-## 文章
-
-- [AIS3 2025 Writeup](/posts/ais3-2025-writeup/)
-- [THJCC CTF Writeup](/posts/thjcc-ctf-writeup/)
+- AEGIS CTF 2024 rk.7
+- AEGIS CTF 2025 rk.5
+- 2025 梅竹黑客松 羅技組 第一名
+- AIS3 Junior 2022 學員
+- 台灣好厲駭 8th
+- 台灣好厲駭 9th
+- 行政院國家資通安全會報 網路攻防演練 攻擊手
+- AIS3 2024 最佳專題 — RASP: RASP A Safer Python
+- AIS3 2025 最佳專題 — 進階資安攻防競技
+- AIS3 Junior 2026 TA
 
 ## 聯絡方式
 
-- [GitHub](https://github.com/haoching)
-- [Instagram](https://www.instagram.com/haoching929/)
-- [Email](mailto:haoching929@gmail.com)
-- [CTFtime](https://ctftime.org/team/301288)
+- email: [haoching929@gmail.com](mailto:haoching929@gmail.com)
+- instagram: [haoching929](https://www.instagram.com/haoching929/)
