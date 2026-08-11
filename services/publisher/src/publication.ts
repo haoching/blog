@@ -1,5 +1,5 @@
 import matter from "gray-matter";
-import { stringArray, validateFrontmatter } from "./validation.js";
+import { stringArray, validateFrontmatter, type PublicationKind } from "./validation.js";
 
 export type ExistingPublication = {
   slug?: string;
@@ -7,6 +7,17 @@ export type ExistingPublication = {
   first_published_at?: Date;
   source_hash?: string;
   last_commit_sha?: string;
+};
+
+export type PublicationArticle = {
+  raw: string;
+  kind: PublicationKind;
+  slug: string;
+  title: string;
+  firstPublishedAt: Date;
+  repoPath: string;
+  urlPath: string;
+  mediaPath: string;
 };
 
 export function githubPathConflicts(
@@ -25,7 +36,7 @@ export function buildPublicationArticle(
   raw: string,
   publication: ExistingPublication | undefined,
   now: Date,
-): { raw: string; slug: string; title: string; firstPublishedAt: Date } {
+): PublicationArticle {
   const parsed = validateFrontmatter(raw);
   const data = { ...parsed.data };
   const sourceDate = data.date instanceof Date
@@ -36,18 +47,48 @@ export function buildPublicationArticle(
   const validSourceDate = sourceDate && !Number.isNaN(sourceDate.getTime()) ? sourceDate : undefined;
   const firstPublishedAt = publication?.first_published_at ?? validSourceDate ?? now;
   data.title = parsed.title;
+  data.lastmod = now.toISOString();
+  data.draft = false;
+
+  if (parsed.kind === "about") {
+    data.page = "about";
+    delete data.slug;
+    delete data.date;
+    delete data.tags;
+    delete data.categories;
+    delete data.authors;
+    delete data.aliases;
+    return {
+      raw: matter.stringify(parsed.content, data),
+      kind: parsed.kind,
+      slug: parsed.slug,
+      title: parsed.title,
+      firstPublishedAt,
+      repoPath: "content/about/index.md",
+      urlPath: "/about/",
+      mediaPath: "pages/about",
+    };
+  }
+
   data.slug = parsed.slug;
   data.tags = stringArray(data.tags);
   data.categories = stringArray(data.categories);
   data.authors = stringArray(data.authors).length ? stringArray(data.authors) : ["haoching"];
   data.date = firstPublishedAt.toISOString();
-  data.lastmod = now.toISOString();
-  data.draft = false;
   if (publication?.slug && publication.slug !== parsed.slug) {
     const aliases = stringArray(data.aliases);
     const oldAlias = `/posts/${publication.slug}/`;
     if (!aliases.includes(oldAlias)) aliases.push(oldAlias);
     data.aliases = aliases;
   }
-  return { raw: matter.stringify(parsed.content, data), slug: parsed.slug, title: parsed.title, firstPublishedAt };
+  return {
+    raw: matter.stringify(parsed.content, data),
+    kind: parsed.kind,
+    slug: parsed.slug,
+    title: parsed.title,
+    firstPublishedAt,
+    repoPath: `content/posts/${parsed.slug}/index.md`,
+    urlPath: `/posts/${parsed.slug}/`,
+    mediaPath: `posts/${parsed.slug}`,
+  };
 }

@@ -12,6 +12,7 @@ dateFormat = "2006 年 1 月 2 日"
 
 [params.author]
 name = "haoching"
+image = "img/rabbit.jpg"
 headline = "🔧施工中…"
 links = [
   { link = "https://chang929.site" },

@@ -53,3 +53,20 @@ test("keeps the stored first-publish date on updates", () => {
   assert.equal(result.firstPublishedAt.toISOString(), "2025-07-25T00:00:00.000Z");
   assert.equal(String(matter(result.raw).data.date), "2025-07-25T00:00:00.000Z");
 });
+
+test("builds the fixed About Me page without article-only fields", () => {
+  const result = buildPublicationArticle(
+    "---\npage: about\ntitle: 關於我\nslug: ignored\ntags: [ignored]\n---\n自我介紹",
+    undefined,
+    new Date("2026-08-12T00:00:00.000Z"),
+  );
+  const parsed = matter(result.raw);
+  assert.equal(result.kind, "about");
+  assert.equal(result.repoPath, "content/about/index.md");
+  assert.equal(result.urlPath, "/about/");
+  assert.equal(result.mediaPath, "pages/about");
+  assert.equal(parsed.data.slug, undefined);
+  assert.equal(parsed.data.date, undefined);
+  assert.equal(parsed.data.tags, undefined);
+  assert.equal(parsed.data.page, "about");
+});

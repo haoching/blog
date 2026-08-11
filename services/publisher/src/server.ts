@@ -119,7 +119,7 @@ type PreparedDraftImage = {
   target: string;
 };
 
-async function inspectDraftImage(request: FastifyRequest, source: string, slug: string): Promise<PreparedDraftImage> {
+async function inspectDraftImage(request: FastifyRequest, source: string, mediaPath: string): Promise<PreparedDraftImage> {
   const url = new URL(source, `https://${HEDGE_DOC_DOMAIN}`);
   const response = await fetch(`${HEDGE_DOC_URL}${url.pathname}`, { headers: { cookie: requestCookie(request) } });
   if (!response.ok) throw new Error(`Unable to read draft image (${response.status})`);
@@ -130,14 +130,14 @@ async function inspectDraftImage(request: FastifyRequest, source: string, slug: 
   assertImageSize(bytes.byteLength);
   const detected = detectImageType(bytes, contentType, source);
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
-  const key = `posts/${slug}/${digest}.${detected.extension}`;
+  const key = `${mediaPath}/${digest}.${detected.extension}`;
   return { key, bytes, mime: detected.mime, target: `${R2_PUBLIC_BASE_URL}/${key}` };
 }
 
 async function prepareImages(
   request: FastifyRequest,
   raw: string,
-  slug: string,
+  mediaPath: string,
   upload: boolean,
 ): Promise<{ raw: string; images: ImageReview[] }> {
   const references = collectReferencedImages(raw, HEDGE_DOC_DOMAIN, R2_PUBLIC_BASE_URL);
@@ -145,7 +145,7 @@ async function prepareImages(
   const images: ImageReview[] = [];
   for (const reference of references) {
     if (reference.kind === "draft") {
-      const prepared = await inspectDraftImage(request, reference.source, slug);
+      const prepared = await inspectDraftImage(request, reference.source, mediaPath);
       if (upload) {
         await r2.send(new PutObjectCommand({
           Bucket: R2_BUCKET,
@@ -210,11 +210,15 @@ type PublishResult = {
   statusUrl: string;
 };
 
-function publishResult(noteId: string, slug: string, commit: string): PublishResult {
+function publishedUrlPath(slug: string, repoPath?: string): string {
+  return repoPath === "content/about/index.md" ? "/about/" : `/posts/${slug}/`;
+}
+
+function publishResult(noteId: string, slug: string, commit: string, repoPath?: string): PublishResult {
   return {
     slug,
     commit,
-    url: `https://chang929.site/posts/${slug}/`,
+    url: `https://chang929.site${publishedUrlPath(slug, repoPath)}`,
     commitUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/commit/${commit}`,
     actionsUrl,
     statusUrl: `/${encodeURIComponent(noteId)}/publish/status?commit=${encodeURIComponent(commit)}`,
@@ -231,20 +235,24 @@ async function publishNote(request: FastifyRequest, noteId: string, expectedHash
   const slugConflict = await pool.query("SELECT note_id FROM publications WHERE slug = $1 AND note_id <> $2 LIMIT 1", [parsed.slug, noteId]);
   if (slugConflict.rowCount) throw new Error(`Slug already belongs to another published note: ${parsed.slug}`);
   if (publication?.source_hash === sourceHash && publication.slug && publication.last_commit_sha) {
-    return publishResult(noteId, publication.slug, publication.last_commit_sha);
+    return publishResult(noteId, publication.slug, publication.last_commit_sha, publication.repo_path);
   }
   const now = new Date();
   const article = buildPublicationArticle(raw, publication, now);
-  const prepared = await prepareImages(request, article.raw, article.slug, true);
-  const repoPath = `content/posts/${article.slug}/index.md`;
+  const wasAbout = publication?.repo_path === "content/about/index.md";
+  if (publication?.repo_path && wasAbout !== (article.kind === "about")) {
+    throw new Error("A published note cannot change between a blog post and the About Me page");
+  }
+  const prepared = await prepareImages(request, article.raw, article.mediaPath, true);
+  const repoPath = article.repoPath;
   const oldRepoPath = publication?.repo_path ?? (publication?.slug ? `content/posts/${publication.slug}/index.md` : undefined);
-  const slugChanged = Boolean(publication?.slug && publication.slug !== article.slug);
+  const slugChanged = article.kind === "post" && Boolean(publication?.slug && publication.slug !== article.slug);
   const current = await getGithubFile(repoPath);
-  if (githubPathConflicts(publication, article.slug, current?.content, prepared.raw)) {
+  if (article.kind === "post" && githubPathConflicts(publication, article.slug, current?.content, prepared.raw)) {
     throw new Error(`Slug already exists in GitHub: ${article.slug}`);
   }
   if (current?.content === prepared.raw && !slugChanged && publication?.last_commit_sha) {
-    return publishResult(noteId, article.slug, publication.last_commit_sha);
+    return publishResult(noteId, article.slug, publication.last_commit_sha, repoPath);
   }
   const octokit = await githubClient();
   let commitSha = publication?.last_commit_sha ?? "unknown";
@@ -282,7 +290,7 @@ async function publishNote(request: FastifyRequest, noteId: string, expectedHash
     ON CONFLICT (note_id) DO UPDATE SET slug = EXCLUDED.slug, repo_path = EXCLUDED.repo_path,
       last_published_at = EXCLUDED.last_published_at, source_hash = EXCLUDED.source_hash,
       last_commit_sha = EXCLUDED.last_commit_sha`, [noteId, article.slug, repoPath, article.firstPublishedAt, now, sourceHash, commitSha]);
-  return publishResult(noteId, article.slug, commitSha);
+  return publishResult(noteId, article.slug, commitSha, repoPath);
 }
 
 function renderDiff(before: string | undefined, after: string): string {
@@ -305,12 +313,13 @@ function renderPreview(
 ): string {
   const parsed = validateFrontmatter(proposed);
   const diff = renderDiff(current, proposed);
+  const urlPath = parsed.kind === "about" ? "/about/" : `/posts/${parsed.slug}/`;
   const imageRows = images.length
     ? `<ul>${images.map((image) => `<li><code>${escapeHtml(image.source)}</code><br>→ <code>${escapeHtml(image.target)}</code><br>${escapeHtml(image.status)}</li>`).join("")}</ul>`
     : "<p>本文沒有引用圖片。</p>";
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>發布 ${escapeHtml(parsed.title)}</title>
   <style>body{font-family:system-ui;max-width:1200px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem}section{border:1px solid #374151;border-radius:8px;padding:1rem}pre{white-space:pre-wrap;max-height:70vh;overflow:auto}li{margin:.75rem 0;overflow-wrap:anywhere}button{background:#38bdf8;border:0;border-radius:6px;padding:.7rem 1rem;cursor:pointer}button:disabled{opacity:.55}a{color:#7dd3fc}</style></head><body>
-  <h1>發布：${escapeHtml(parsed.title)}</h1><p>網址：<code>/posts/${escapeHtml(parsed.slug)}/</code></p><p>驗證通過：frontmatter、slug、Markdown 語法與草稿圖片皆符合發布規則。</p><main><section><h2>Frontmatter</h2><pre>${escapeHtml(YAML.stringify(parsed.data))}</pre></section><section><h2>Markdown</h2><pre>${escapeHtml(parsed.content)}</pre></section><section><h2>圖片</h2>${imageRows}</section><section><h2>Git diff</h2><pre>${escapeHtml(diff)}</pre></section></main>
+  <h1>發布：${escapeHtml(parsed.title)}</h1><p>網址：<code>${escapeHtml(urlPath)}</code></p><p>驗證通過：frontmatter、路徑、Markdown 語法與草稿圖片皆符合發布規則。</p><main><section><h2>Frontmatter</h2><pre>${escapeHtml(YAML.stringify(parsed.data))}</pre></section><section><h2>Markdown</h2><pre>${escapeHtml(parsed.content)}</pre></section><section><h2>圖片</h2>${imageRows}</section><section><h2>Git diff</h2><pre>${escapeHtml(diff)}</pre></section></main>
   <p><button id="publish">確認發布</button></p><p id="status"></p><p id="deployment"></p><script>
   const button=document.querySelector('#publish');const status=document.querySelector('#status');const deployment=document.querySelector('#deployment');
   async function poll(url){const response=await fetch(url);const result=await response.json();if(result.error){deployment.textContent=result.error;return}deployment.innerHTML='部署：<a target="_blank" rel="noreferrer" href="'+result.actionsUrl+'">'+result.status+(result.conclusion?' / '+result.conclusion:'')+'</a>';if(result.status!=='completed')setTimeout(()=>poll(url),3000)}
@@ -328,9 +337,13 @@ async function handlePreview(request: FastifyRequest<{ Params: { noteId: string 
     const slugConflict = await pool.query("SELECT note_id FROM publications WHERE slug = $1 AND note_id <> $2 LIMIT 1", [parsed.slug, request.params.noteId]);
     if (slugConflict.rowCount) throw new Error(`Slug already belongs to another published note: ${parsed.slug}`);
     const article = buildPublicationArticle(raw, publication, new Date());
-    const prepared = await prepareImages(request, article.raw, article.slug, false);
-    const current = await getGithubFile(`content/posts/${article.slug}/index.md`);
-    if (githubPathConflicts(publication, article.slug, current?.content, prepared.raw)) {
+    const wasAbout = publication?.repo_path === "content/about/index.md";
+    if (publication?.repo_path && wasAbout !== (article.kind === "about")) {
+      throw new Error("A published note cannot change between a blog post and the About Me page");
+    }
+    const prepared = await prepareImages(request, article.raw, article.mediaPath, false);
+    const current = await getGithubFile(article.repoPath);
+    if (article.kind === "post" && githubPathConflicts(publication, article.slug, current?.content, prepared.raw)) {
       throw new Error(`Slug already exists in GitHub: ${article.slug}`);
     }
     reply.type("text/html").send(renderPreview(request.params.noteId, prepared.raw, sourceHash, current?.content, prepared.images));

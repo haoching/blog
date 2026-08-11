@@ -22,6 +22,22 @@ copies referenced draft images to R2, rewrites media URLs, and commits the publi
 Markdown to this repository. It also rejects HedgeDoc-only constructs (for example
 `[toc]` and slide directives) with a line number so the GitHub article remains portable.
 
+### About Me page
+
+The fixed `/about/` page uses the same HedgeDoc Publish action. Its note starts with:
+
+```yaml
+---
+page: about
+title: "關於我"
+description: "關於 haoching"
+---
+```
+
+Unlike a post, it does not require a `slug`. Publishing updates only
+`content/about/index.md`; pasted images are copied to R2 under `pages/about/`.
+The `about` post slug is reserved so it cannot conflict with the fixed page.
+
 ## Deployment secrets
 
 The production GitHub Actions environment requires `CLOUDFLARE_API_TOKEN` and

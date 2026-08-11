@@ -23,3 +23,14 @@ test("rejects object-valued tag fields", () => {
 test("reports HedgeDoc-only syntax with a line number", () => {
   assert.throws(() => validateFrontmatter("---\ntitle: Syntax\nslug: syntax\n---\n本文\n[toc]"), /HedgeDoc-only syntax at line 2/);
 });
+
+test("accepts the fixed About Me page without a slug", () => {
+  const page = validateFrontmatter("---\npage: about\ntitle: 關於我\n---\n自我介紹");
+  assert.equal(page.kind, "about");
+  assert.equal(page.slug, "about");
+});
+
+test("reserves the about slug and rejects unknown fixed pages", () => {
+  assert.throws(() => validateFrontmatter("---\ntitle: Post\nslug: about\n---\nBody"), /reserved/);
+  assert.throws(() => validateFrontmatter("---\npage: home\ntitle: Home\n---\nBody"), /page must be/);
+});

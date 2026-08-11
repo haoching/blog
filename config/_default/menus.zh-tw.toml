@@ -1,4 +1,9 @@
 [[main]]
+name = "關於我"
+pageRef = "about"
+weight = 20
+
+[[main]]
 name = "文章"
 pageRef = "posts"
 weight = 30
