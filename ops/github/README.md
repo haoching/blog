@@ -6,7 +6,7 @@
 - Actions：Read-only
 - Metadata：Read-only（GitHub 強制）
 
-不要把 App private key 放在 HedgeDoc note、repository 或 Docker image；在 LXC secret store／root-only `.env` 產生短期 installation token，填入 `GITHUB_TOKEN`。目前程式也接受 fine-grained token 作為 bootstrap，但正式環境應換回 App installation token。
+不要把 App private key 放在 HedgeDoc note、repository 或 Docker image。正式環境把 PEM 存在 `ops/hedgedoc/secrets/github-app.pem`（root-only，且已 gitignore），並設定 `GITHUB_APP_ID` 與 `GITHUB_APP_INSTALLATION_ID`；發布器會自動產生及更新短期 installation token。`GITHUB_TOKEN` 只保留作為 bootstrap fallback，正式環境應留空。
 
 ## 分支流程
 

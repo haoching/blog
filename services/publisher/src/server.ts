@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import matter from "gray-matter";
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { Octokit } from "octokit";
+import { App, Octokit } from "octokit";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Pool } from "pg";
 import YAML from "yaml";
@@ -26,7 +27,23 @@ const R2_PUBLIC_BASE_URL = env("R2_PUBLIC_BASE_URL").replace(/\/$/, "");
 const REQUIRE_ACCESS = (process.env.REQUIRE_ACCESS ?? "true") === "true";
 
 const pool = new Pool({ connectionString: DATABASE_URL });
-const octokit = new Octokit({ auth: env("GITHUB_TOKEN") });
+const staticGithubToken = process.env.GITHUB_TOKEN?.trim();
+const staticOctokit = staticGithubToken ? new Octokit({ auth: staticGithubToken }) : undefined;
+const githubApp = staticGithubToken
+  ? undefined
+  : new App({
+      appId: env("GITHUB_APP_ID"),
+      privateKey: fs.readFileSync(env("GITHUB_APP_PRIVATE_KEY_PATH"), "utf8"),
+    });
+const githubInstallationId = staticGithubToken ? undefined : Number(env("GITHUB_APP_INSTALLATION_ID"));
+
+async function githubClient(): Promise<Octokit> {
+  if (staticOctokit) return staticOctokit;
+  if (!githubApp || !Number.isSafeInteger(githubInstallationId) || githubInstallationId! <= 0) {
+    throw new Error("Invalid GitHub App installation configuration");
+  }
+  return githubApp.getInstallationOctokit(githubInstallationId!);
+}
 const r2 = new S3Client({
   region: process.env.R2_REGION ?? "auto",
   endpoint: env("R2_ENDPOINT"),
@@ -136,6 +153,7 @@ async function rewriteDraftImages(request: FastifyRequest, raw: string, slug: st
 
 async function getGithubFile(path: string): Promise<{ sha: string; content: string } | undefined> {
   try {
+    const octokit = await githubClient();
     const result = await octokit.rest.repos.getContent({ owner: GITHUB_OWNER, repo: GITHUB_REPO, path, ref: GITHUB_BRANCH });
     if (Array.isArray(result.data) || result.data.type !== "file") return undefined;
     return { sha: result.data.sha, content: Buffer.from(result.data.content ?? "", "base64").toString("utf8") };
@@ -189,6 +207,7 @@ async function publishNote(request: FastifyRequest, noteId: string, expectedHash
   if (current?.content === normalized && publication?.last_commit_sha) {
     return { slug: parsed.slug, commit: publication.last_commit_sha, url: `https://chang929.site/posts/${parsed.slug}/`, actionsUrl };
   }
+  const octokit = await githubClient();
   const response = await octokit.rest.repos.createOrUpdateFileContents({ owner: GITHUB_OWNER, repo: GITHUB_REPO, path: repoPath, branch: GITHUB_BRANCH, message: `publish: ${parsed.title}`, content: Buffer.from(normalized, "utf8").toString("base64"), sha: current?.sha });
   const commitSha = response.data.commit.sha ?? response.data.content?.sha ?? "unknown";
   await pool.query(`INSERT INTO publications (note_id, slug, repo_path, first_published_at, last_published_at, source_hash, last_commit_sha)

@@ -17,5 +17,6 @@ Thumbs.db
 # Local editor/server data
 ops/hedgedoc/data/
 ops/hedgedoc/backups/
+ops/hedgedoc/secrets/
 services/publisher/.data/
 *.log

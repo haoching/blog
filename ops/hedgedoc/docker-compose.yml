@@ -57,6 +57,8 @@ services:
     environment:
       DATABASE_URL: postgres://publisher:${PUBLISHER_DB_PASSWORD}@publisher_database:5432/publisher
       HEDGE_DOC_URL: http://hedgedoc:3000
+    volumes:
+      - ./secrets/github-app.pem:/run/secrets/github-app.pem:ro
     networks: [editor]
 
   reverse_proxy:
