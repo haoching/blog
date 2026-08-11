@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
+    "migrate:existing": "node dist/migrate-existing.js",
     "start": "node dist/server.js",
     "test": "tsx --test test/validation.test.ts"
   },
