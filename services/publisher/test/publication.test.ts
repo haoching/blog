@@ -33,3 +33,23 @@ test("blocks slugs that already exist outside this publication", () => {
   assert.equal(githubPathConflicts({ slug: "old" }, "new", "existing", "proposed"), true);
   assert.equal(githubPathConflicts({ slug: "old" }, "new", "proposed", "proposed"), false);
 });
+
+test("uses a migrated source date on first publish", () => {
+  const result = buildPublicationArticle(
+    "---\ntitle: Migrated\nslug: migrated\ndate: 2025-07-25T00:00:00.000Z\n---\nBody",
+    undefined,
+    new Date("2026-08-11T12:00:00.000Z"),
+  );
+  assert.equal(result.firstPublishedAt.toISOString(), "2025-07-25T00:00:00.000Z");
+  assert.equal(String(matter(result.raw).data.date), "2025-07-25T00:00:00.000Z");
+});
+
+test("keeps the stored first-publish date on updates", () => {
+  const result = buildPublicationArticle(
+    "---\ntitle: Stable\nslug: stable\ndate: 2030-01-01T00:00:00.000Z\n---\nBody",
+    { first_published_at: new Date("2025-07-25T00:00:00.000Z") },
+    new Date("2026-08-11T12:00:00.000Z"),
+  );
+  assert.equal(result.firstPublishedAt.toISOString(), "2025-07-25T00:00:00.000Z");
+  assert.equal(String(matter(result.raw).data.date), "2025-07-25T00:00:00.000Z");
+});
