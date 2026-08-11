@@ -1,0 +1,91 @@
+services:
+  database:
+    image: postgres:17.7-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hedgedoc
+      POSTGRES_PASSWORD: ${HEDGE_DOC_DB_PASSWORD:?set HEDGE_DOC_DB_PASSWORD}
+      POSTGRES_DB: hedgedoc
+    volumes:
+      - hedgedoc_db:/var/lib/postgresql/data
+    networks: [editor]
+
+  publisher_database:
+    image: postgres:17.7-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: publisher
+      POSTGRES_PASSWORD: ${PUBLISHER_DB_PASSWORD:?set PUBLISHER_DB_PASSWORD}
+      POSTGRES_DB: publisher
+    volumes:
+      - publisher_db:/var/lib/postgresql/data
+    networks: [editor]
+
+  hedgedoc:
+    image: quay.io/hedgedoc/hedgedoc:1.11.1
+    restart: unless-stopped
+    depends_on: [database]
+    environment:
+      CMD_DB_URL: postgres://hedgedoc:${HEDGE_DOC_DB_PASSWORD}@database:5432/hedgedoc
+      CMD_DOMAIN: ${HEDGE_DOC_DOMAIN:-edit.chang929.site}
+      CMD_PROTOCOL_USESSL: "true"
+      CMD_URL_ADDPORT: "false"
+      CMD_ALLOW_ANONYMOUS: "false"
+      CMD_ALLOW_ANONYMOUS_EDITS: "false"
+      CMD_ALLOW_FREEURL: "false"
+      CMD_DISABLE_NOTE_CREATION: "false"
+      CMD_DEFAULT_PERMISSION: "limited"
+      CMD_ENABLE_UPLOADS: "registered"
+      CMD_IMAGE_UPLOAD_TYPE: "filesystem"
+      CMD_EMAIL: "false"
+      CMD_ALLOW_EMAIL_REGISTER: "false"
+      CMD_GITHUB_CLIENTID: ${HEDGE_DOC_GITHUB_CLIENT_ID:?set HEDGE_DOC_GITHUB_CLIENT_ID}
+      CMD_GITHUB_CLIENTSECRET: ${HEDGE_DOC_GITHUB_CLIENT_SECRET:?set HEDGE_DOC_GITHUB_CLIENT_SECRET}
+      CMD_SESSION_SECRET: ${HEDGE_DOC_SESSION_SECRET:?set HEDGE_DOC_SESSION_SECRET}
+      CMD_RATE_LIMIT_USING_CLOUDFLARE: "true"
+      CMD_CSP_ENABLE: "true"
+      CMD_CSP_ALLOW_FRAMING: "false"
+    volumes:
+      - hedgedoc_uploads:/hedgedoc/public/uploads
+    networks: [editor]
+
+  publisher:
+    build: ../../services/publisher
+    restart: unless-stopped
+    depends_on: [publisher_database, hedgedoc]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://publisher:${PUBLISHER_DB_PASSWORD}@publisher_database:5432/publisher
+      HEDGE_DOC_URL: http://hedgedoc:3000
+    volumes:
+      - ./secrets/github-app.pem:/run/secrets/github-app.pem:ro
+    networks: [editor]
+
+  reverse_proxy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    depends_on: [hedgedoc, publisher]
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [editor]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on: [reverse_proxy]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN}
+    networks: [editor]
+
+volumes:
+  hedgedoc_db:
+  publisher_db:
+  hedgedoc_uploads:
+  caddy_data:
+  caddy_config:
+
+networks:
+  editor:

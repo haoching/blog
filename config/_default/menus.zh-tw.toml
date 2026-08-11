@@ -1,0 +1,10 @@
+[[main]]
+name = "文章"
+pageRef = "posts"
+weight = 30
+
+[[main]]
+identifier = "github"
+pre = "github"
+url = "https://github.com/haoching"
+weight = 40
