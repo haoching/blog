@@ -1,13 +1,20 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
-import matter from "gray-matter";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { App, Octokit } from "octokit";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Pool } from "pg";
 import YAML from "yaml";
-import { stringArray, validateFrontmatter } from "./validation.js";
+import {
+  assertImageSize,
+  collectReferencedImages,
+  detectImageType,
+  replaceImageSources,
+  type ReferencedImage,
+} from "./images.js";
+import { buildPublicationArticle, githubPathConflicts, type ExistingPublication } from "./publication.js";
+import { validateFrontmatter } from "./validation.js";
 
 const env = (name: string, fallback?: string): string => {
   const value = process.env[name] ?? fallback;
@@ -100,55 +107,65 @@ async function fetchNote(request: FastifyRequest, noteId: string): Promise<strin
   return response.text();
 }
 
-function isDraftUpload(value: string): boolean {
-  try {
-    const url = new URL(value, `https://${HEDGE_DOC_DOMAIN}`);
-    return url.hostname === HEDGE_DOC_DOMAIN && url.pathname.startsWith("/uploads/");
-  } catch {
-    return false;
-  }
-}
+type ImageReview = ReferencedImage & {
+  target: string;
+  status: string;
+};
 
-function detectImageType(bytes: Buffer, contentType: string | null, source: string): { extension: string; mime: string } {
-  const signatures: Array<{ extension: string; mime: string; matches: (data: Buffer) => boolean }> = [
-    { extension: "png", mime: "image/png", matches: (data) => data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) },
-    { extension: "jpg", mime: "image/jpeg", matches: (data) => data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff },
-    { extension: "webp", mime: "image/webp", matches: (data) => data.length >= 12 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP" },
-    { extension: "gif", mime: "image/gif", matches: (data) => data.length >= 6 && (data.toString("ascii", 0, 6) === "GIF87a" || data.toString("ascii", 0, 6) === "GIF89a") },
-  ];
-  const detected = signatures.find(({ matches }) => matches(bytes));
-  if (!detected || (contentType && contentType !== detected.mime)) throw new Error(`Unsupported or mismatched image type for ${source}`);
-  return { extension: detected.extension, mime: detected.mime };
-}
+type PreparedDraftImage = {
+  key: string;
+  bytes: Buffer;
+  mime: string;
+  target: string;
+};
 
-async function uploadDraftImage(request: FastifyRequest, source: string, slug: string): Promise<string> {
+async function inspectDraftImage(request: FastifyRequest, source: string, slug: string): Promise<PreparedDraftImage> {
   const url = new URL(source, `https://${HEDGE_DOC_DOMAIN}`);
   const response = await fetch(`${HEDGE_DOC_URL}${url.pathname}`, { headers: { cookie: requestCookie(request) } });
   if (!response.ok) throw new Error(`Unable to read draft image (${response.status})`);
-  const advertisedLength = Number(response.headers.get("content-length") ?? "0");
-  if (advertisedLength > 10 * 1024 * 1024) throw new Error("Image exceeds the 10 MB limit");
+  const advertisedLength = response.headers.get("content-length");
+  if (advertisedLength) assertImageSize(Number(advertisedLength));
   const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? null;
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("Image exceeds the 10 MB limit");
+  assertImageSize(bytes.byteLength);
   const detected = detectImageType(bytes, contentType, source);
   const digest = crypto.createHash("sha256").update(bytes).digest("hex");
   const key = `posts/${slug}/${digest}.${detected.extension}`;
-  await r2.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: bytes, ContentType: detected.mime, CacheControl: "public, max-age=31536000, immutable" }));
-  return `${R2_PUBLIC_BASE_URL}/${key}`;
+  return { key, bytes, mime: detected.mime, target: `${R2_PUBLIC_BASE_URL}/${key}` };
 }
 
-async function rewriteDraftImages(request: FastifyRequest, raw: string, slug: string): Promise<string> {
-  const parsed = matter(raw);
-  const sourceUrls = new Set<string>();
-  const markdownImage = /!\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/g;
-  for (const match of parsed.content.matchAll(markdownImage)) if (isDraftUpload(match[1])) sourceUrls.add(match[1]);
-  if (typeof parsed.data.featureimage === "string" && isDraftUpload(parsed.data.featureimage)) sourceUrls.add(parsed.data.featureimage);
+async function prepareImages(
+  request: FastifyRequest,
+  raw: string,
+  slug: string,
+  upload: boolean,
+): Promise<{ raw: string; images: ImageReview[] }> {
+  const references = collectReferencedImages(raw, HEDGE_DOC_DOMAIN, R2_PUBLIC_BASE_URL);
   const replacements = new Map<string, string>();
-  for (const source of sourceUrls) replacements.set(source, await uploadDraftImage(request, source, slug));
-  let content = parsed.content;
-  for (const [source, target] of replacements) content = content.replaceAll(source, target);
-  if (typeof parsed.data.featureimage === "string" && replacements.has(parsed.data.featureimage)) parsed.data.featureimage = replacements.get(parsed.data.featureimage);
-  return matter.stringify(content, parsed.data);
+  const images: ImageReview[] = [];
+  for (const reference of references) {
+    if (reference.kind === "draft") {
+      const prepared = await inspectDraftImage(request, reference.source, slug);
+      if (upload) {
+        await r2.send(new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: prepared.key,
+          Body: prepared.bytes,
+          ContentType: prepared.mime,
+          CacheControl: "public, max-age=31536000, immutable",
+        }));
+      }
+      replacements.set(reference.source, prepared.target);
+      images.push({ ...reference, target: prepared.target, status: upload ? "validated and copied to R2" : "validated; will be copied to R2" });
+    } else {
+      images.push({
+        ...reference,
+        target: reference.source,
+        status: reference.kind === "published" ? "already stored in R2" : "supported external URL",
+      });
+    }
+  }
+  return { raw: replaceImageSources(raw, replacements), images };
 }
 
 async function getGithubFile(path: string): Promise<{ sha: string; content: string } | undefined> {
@@ -163,6 +180,18 @@ async function getGithubFile(path: string): Promise<{ sha: string; content: stri
   }
 }
 
+async function getLatestCommitForPath(path: string): Promise<string | undefined> {
+  const octokit = await githubClient();
+  const result = await octokit.rest.repos.listCommits({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    sha: GITHUB_BRANCH,
+    path,
+    per_page: 1,
+  });
+  return result.data[0]?.sha;
+}
+
 async function ensureSchema(): Promise<void> {
   await pool.query(`CREATE TABLE IF NOT EXISTS publications (
     note_id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, repo_path TEXT NOT NULL UNIQUE,
@@ -172,50 +201,89 @@ async function ensureSchema(): Promise<void> {
 
 const actionsUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/actions`;
 
-async function publishNote(request: FastifyRequest, noteId: string, expectedHash: string): Promise<{ slug: string; commit: string; url: string; actionsUrl: string }> {
+type PublishResult = {
+  slug: string;
+  commit: string;
+  url: string;
+  commitUrl: string;
+  actionsUrl: string;
+  statusUrl: string;
+};
+
+function publishResult(noteId: string, slug: string, commit: string): PublishResult {
+  return {
+    slug,
+    commit,
+    url: `https://chang929.site/posts/${slug}/`,
+    commitUrl: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/commit/${commit}`,
+    actionsUrl,
+    statusUrl: `/${encodeURIComponent(noteId)}/publish/status?commit=${encodeURIComponent(commit)}`,
+  };
+}
+
+async function publishNote(request: FastifyRequest, noteId: string, expectedHash: string): Promise<PublishResult> {
   const raw = await fetchNote(request, noteId);
   const sourceHash = crypto.createHash("sha256").update(raw).digest("hex");
   if (sourceHash !== expectedHash) throw new Error("The note changed while you were reviewing it; reload and confirm again");
   const parsed = validateFrontmatter(raw);
   const existing = await pool.query("SELECT * FROM publications WHERE note_id = $1", [noteId]);
-  const publication = existing.rows[0] as { slug?: string; first_published_at?: Date; source_hash?: string; last_commit_sha?: string } | undefined;
+  const publication = existing.rows[0] as ExistingPublication | undefined;
   const slugConflict = await pool.query("SELECT note_id FROM publications WHERE slug = $1 AND note_id <> $2 LIMIT 1", [parsed.slug, noteId]);
   if (slugConflict.rowCount) throw new Error(`Slug already belongs to another published note: ${parsed.slug}`);
   if (publication?.source_hash === sourceHash && publication.slug && publication.last_commit_sha) {
-    return { slug: publication.slug, commit: publication.last_commit_sha, url: `https://chang929.site/posts/${publication.slug}/`, actionsUrl };
+    return publishResult(noteId, publication.slug, publication.last_commit_sha);
   }
   const now = new Date();
   const firstPublishedAt = publication?.first_published_at ?? now;
-  const data = { ...parsed.data };
-  data.title = parsed.title;
-  data.slug = parsed.slug;
-  data.tags = stringArray(data.tags);
-  data.categories = stringArray(data.categories);
-  data.authors = stringArray(data.authors).length ? stringArray(data.authors) : ["haoching"];
-  data.date = publication?.first_published_at ? publication.first_published_at.toISOString() : (data.date ?? firstPublishedAt.toISOString());
-  data.lastmod = now.toISOString();
-  data.draft = false;
-  if (publication?.slug && publication.slug !== parsed.slug) {
-    const aliases = stringArray(data.aliases);
-    const oldAlias = `/posts/${publication.slug}/`;
-    if (!aliases.includes(oldAlias)) aliases.push(oldAlias);
-    data.aliases = aliases;
-  }
-  const normalized = await rewriteDraftImages(request, matter.stringify(parsed.content, data), parsed.slug);
-  const repoPath = `content/posts/${parsed.slug}/index.md`;
+  const article = buildPublicationArticle(raw, publication, now);
+  const prepared = await prepareImages(request, article.raw, article.slug, true);
+  const repoPath = `content/posts/${article.slug}/index.md`;
+  const oldRepoPath = publication?.repo_path ?? (publication?.slug ? `content/posts/${publication.slug}/index.md` : undefined);
+  const slugChanged = Boolean(publication?.slug && publication.slug !== article.slug);
   const current = await getGithubFile(repoPath);
-  if (current?.content === normalized && publication?.last_commit_sha) {
-    return { slug: parsed.slug, commit: publication.last_commit_sha, url: `https://chang929.site/posts/${parsed.slug}/`, actionsUrl };
+  if (githubPathConflicts(publication, article.slug, current?.content, prepared.raw)) {
+    throw new Error(`Slug already exists in GitHub: ${article.slug}`);
+  }
+  if (current?.content === prepared.raw && !slugChanged && publication?.last_commit_sha) {
+    return publishResult(noteId, article.slug, publication.last_commit_sha);
   }
   const octokit = await githubClient();
-  const response = await octokit.rest.repos.createOrUpdateFileContents({ owner: GITHUB_OWNER, repo: GITHUB_REPO, path: repoPath, branch: GITHUB_BRANCH, message: `publish: ${parsed.title}`, content: Buffer.from(normalized, "utf8").toString("base64"), sha: current?.sha });
-  const commitSha = response.data.commit.sha ?? response.data.content?.sha ?? "unknown";
+  let commitSha = publication?.last_commit_sha ?? "unknown";
+  if (current?.content !== prepared.raw) {
+    const response = await octokit.rest.repos.createOrUpdateFileContents({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: repoPath,
+      branch: GITHUB_BRANCH,
+      message: `publish: ${article.title}`,
+      content: Buffer.from(prepared.raw, "utf8").toString("base64"),
+      sha: current?.sha,
+    });
+    commitSha = response.data.commit.sha ?? response.data.content?.sha ?? commitSha;
+  } else {
+    commitSha = (await getLatestCommitForPath(repoPath)) ?? commitSha;
+  }
+  if (slugChanged && oldRepoPath && oldRepoPath !== repoPath) {
+    const oldFile = await getGithubFile(oldRepoPath);
+    if (oldFile) {
+      const deleted = await octokit.rest.repos.deleteFile({
+        owner: GITHUB_OWNER,
+        repo: GITHUB_REPO,
+        path: oldRepoPath,
+        branch: GITHUB_BRANCH,
+        message: `publish: redirect ${publication?.slug} to ${article.slug}`,
+        sha: oldFile.sha,
+      });
+      commitSha = deleted.data.commit.sha ?? commitSha;
+    }
+  }
+  if (!/^[a-f0-9]{40}$/.test(commitSha)) throw new Error("GitHub did not return a valid commit SHA");
   await pool.query(`INSERT INTO publications (note_id, slug, repo_path, first_published_at, last_published_at, source_hash, last_commit_sha)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (note_id) DO UPDATE SET slug = EXCLUDED.slug, repo_path = EXCLUDED.repo_path,
       last_published_at = EXCLUDED.last_published_at, source_hash = EXCLUDED.source_hash,
-      last_commit_sha = EXCLUDED.last_commit_sha`, [noteId, parsed.slug, repoPath, firstPublishedAt, now, sourceHash, commitSha]);
-  return { slug: parsed.slug, commit: commitSha, url: `https://chang929.site/posts/${parsed.slug}/`, actionsUrl };
+      last_commit_sha = EXCLUDED.last_commit_sha`, [noteId, article.slug, repoPath, firstPublishedAt, now, sourceHash, commitSha]);
+  return publishResult(noteId, article.slug, commitSha);
 }
 
 function renderDiff(before: string | undefined, after: string): string {
@@ -229,14 +297,25 @@ function renderDiff(before: string | undefined, after: string): string {
   ].join("\n");
 }
 
-function renderPreview(noteId: string, raw: string, sourceHash: string, current: string | undefined): string {
-  const parsed = validateFrontmatter(raw);
-  const diff = renderDiff(current, raw);
-  return `<!doctype html><meta charset="utf-8"><title>發布 ${escapeHtml(parsed.title)}</title>
-  <style>body{font-family:system-ui;max-width:1200px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}main{display:grid;grid-template-columns:1fr 1fr;gap:1rem}section{border:1px solid #374151;border-radius:8px;padding:1rem}pre{white-space:pre-wrap;max-height:70vh;overflow:auto}button{background:#38bdf8;border:0;border-radius:6px;padding:.7rem 1rem;cursor:pointer}</style>
-  <h1>發布：${escapeHtml(parsed.title)}</h1><p>網址：/posts/${escapeHtml(parsed.slug)}/</p><main><section><h2>Frontmatter</h2><pre>${escapeHtml(YAML.stringify(parsed.data))}</pre></section><section><h2>Markdown</h2><pre>${escapeHtml(parsed.content)}</pre></section><section><h2>Git diff</h2><pre>${escapeHtml(diff)}</pre></section></main>
-  <button id="publish">確認發布</button><p id="status"></p><script>
-  document.querySelector('#publish').onclick=async()=>{const b=document.querySelector('#publish');b.disabled=true;const s=document.querySelector('#status');s.textContent='發布中…';const r=await fetch('/${encodeURIComponent(noteId)}/publish/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sourceHash:'${sourceHash}'})});const j=await r.json();s.textContent=j.error||('完成：'+j.url+' commit '+j.commit);b.disabled=false};</script>`;
+function renderPreview(
+  noteId: string,
+  proposed: string,
+  sourceHash: string,
+  current: string | undefined,
+  images: ImageReview[],
+): string {
+  const parsed = validateFrontmatter(proposed);
+  const diff = renderDiff(current, proposed);
+  const imageRows = images.length
+    ? `<ul>${images.map((image) => `<li><code>${escapeHtml(image.source)}</code><br>→ <code>${escapeHtml(image.target)}</code><br>${escapeHtml(image.status)}</li>`).join("")}</ul>`
+    : "<p>本文沒有引用圖片。</p>";
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>發布 ${escapeHtml(parsed.title)}</title>
+  <style>body{font-family:system-ui;max-width:1200px;margin:2rem auto;padding:0 1rem;background:#111827;color:#e5e7eb}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem}section{border:1px solid #374151;border-radius:8px;padding:1rem}pre{white-space:pre-wrap;max-height:70vh;overflow:auto}li{margin:.75rem 0;overflow-wrap:anywhere}button{background:#38bdf8;border:0;border-radius:6px;padding:.7rem 1rem;cursor:pointer}button:disabled{opacity:.55}a{color:#7dd3fc}</style></head><body>
+  <h1>發布：${escapeHtml(parsed.title)}</h1><p>網址：<code>/posts/${escapeHtml(parsed.slug)}/</code></p><p>驗證通過：frontmatter、slug、Markdown 語法與草稿圖片皆符合發布規則。</p><main><section><h2>Frontmatter</h2><pre>${escapeHtml(YAML.stringify(parsed.data))}</pre></section><section><h2>Markdown</h2><pre>${escapeHtml(parsed.content)}</pre></section><section><h2>圖片</h2>${imageRows}</section><section><h2>Git diff</h2><pre>${escapeHtml(diff)}</pre></section></main>
+  <p><button id="publish">確認發布</button></p><p id="status"></p><p id="deployment"></p><script>
+  const button=document.querySelector('#publish');const status=document.querySelector('#status');const deployment=document.querySelector('#deployment');
+  async function poll(url){const response=await fetch(url);const result=await response.json();if(result.error){deployment.textContent=result.error;return}deployment.innerHTML='部署：<a target="_blank" rel="noreferrer" href="'+result.actionsUrl+'">'+result.status+(result.conclusion?' / '+result.conclusion:'')+'</a>';if(result.status!=='completed')setTimeout(()=>poll(url),3000)}
+  button.onclick=async()=>{button.disabled=true;status.textContent='發布中…';const response=await fetch('/${encodeURIComponent(noteId)}/publish/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sourceHash:'${sourceHash}'})});const result=await response.json();if(result.error){status.textContent=result.error;button.disabled=false;return}status.innerHTML='完成：<a href="'+result.url+'">文章</a> · <a target="_blank" rel="noreferrer" href="'+result.commitUrl+'">commit '+result.commit.slice(0,7)+'</a>';poll(result.statusUrl)};</script></body></html>`;
 }
 
 async function handlePreview(request: FastifyRequest<{ Params: { noteId: string } }>, reply: FastifyReply): Promise<void> {
@@ -245,8 +324,41 @@ async function handlePreview(request: FastifyRequest<{ Params: { noteId: string 
     const raw = await fetchNote(request, request.params.noteId);
     const sourceHash = crypto.createHash("sha256").update(raw).digest("hex");
     const parsed = validateFrontmatter(raw);
-    const current = await getGithubFile(`content/posts/${parsed.slug}/index.md`);
-    reply.type("text/html").send(renderPreview(request.params.noteId, raw, sourceHash, current?.content));
+    const existing = await pool.query("SELECT * FROM publications WHERE note_id = $1", [request.params.noteId]);
+    const publication = existing.rows[0] as ExistingPublication | undefined;
+    const slugConflict = await pool.query("SELECT note_id FROM publications WHERE slug = $1 AND note_id <> $2 LIMIT 1", [parsed.slug, request.params.noteId]);
+    if (slugConflict.rowCount) throw new Error(`Slug already belongs to another published note: ${parsed.slug}`);
+    const article = buildPublicationArticle(raw, publication, new Date());
+    const prepared = await prepareImages(request, article.raw, article.slug, false);
+    const current = await getGithubFile(`content/posts/${article.slug}/index.md`);
+    if (githubPathConflicts(publication, article.slug, current?.content, prepared.raw)) {
+      throw new Error(`Slug already exists in GitHub: ${article.slug}`);
+    }
+    reply.type("text/html").send(renderPreview(request.params.noteId, prepared.raw, sourceHash, current?.content, prepared.images));
+  } catch (error: any) {
+    reply.code(400).send({ error: error.message });
+  }
+}
+
+async function handleStatus(
+  request: FastifyRequest<{ Params: { noteId: string }; Querystring: { commit?: string } }>,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!(await requireAccess(request, reply))) return;
+  try {
+    const commit = request.query.commit;
+    if (!commit || !/^[a-f0-9]{40}$/.test(commit)) throw new Error("Invalid commit SHA");
+    const octokit = await githubClient();
+    const runs = await octokit.rest.actions.listWorkflowRunsForRepo({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      head_sha: commit,
+      per_page: 1,
+    });
+    const run = runs.data.workflow_runs[0];
+    reply.send(run
+      ? { status: run.status, conclusion: run.conclusion, actionsUrl: run.html_url }
+      : { status: "waiting", conclusion: null, actionsUrl });
   } catch (error: any) {
     reply.code(400).send({ error: error.message });
   }
@@ -268,6 +380,7 @@ async function handleConfirm(request: FastifyRequest<{ Params: { noteId: string 
 
 app.get("/:noteId/publish", handlePreview);
 app.post("/:noteId/publish/confirm", handleConfirm);
+app.get("/:noteId/publish/status", handleStatus);
 app.get("/health", async () => ({ ok: true }));
 
 await ensureSchema();

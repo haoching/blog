@@ -11,6 +11,7 @@
 # Tooling
 node_modules/
 dist/
+dist-test/
 .DS_Store
 Thumbs.db
 
