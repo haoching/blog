@@ -33,3 +33,4 @@ draft: false
 
 - email: [haoching929@gmail.com](mailto:haoching929@gmail.com)
 - instagram: [haoching929](https://www.instagram.com/haoching929/)
+- discord: `Chang#48763_`
