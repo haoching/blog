@@ -45,6 +45,18 @@ jobs:
       - name: Install Wrangler
         run: npm ci
 
+      - name: Install publisher dependencies
+        working-directory: services/publisher
+        run: npm ci
+
+      - name: Test publisher
+        working-directory: services/publisher
+        run: npm test
+
+      - name: Build publisher
+        working-directory: services/publisher
+        run: npm run build
+
       - name: Build Hugo site
         run: bash ./build.sh
 
