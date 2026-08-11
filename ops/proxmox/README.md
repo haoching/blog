@@ -32,6 +32,7 @@ apt install -y ca-certificates curl git openssh-client
 
 - Proxmox backup job：每天 03:30，保留 7 份每日、4 份每週。
 - CT 內每天 03:00 執行 `ops/proxmox/backup-postgres.sh`，將兩個 PostgreSQL custom-format dump 寫入 `ops/hedgedoc/backups/postgres/`，再隨 03:30 LXC backup 一起保存。
+- 將 `blog-v2-postgres-backup.service` 與 `.timer` 安裝至 `/etc/systemd/system/`；CT 時區固定為 `Asia/Taipei`，timer 啟用 `Persistent=true`。
 - 每季建立隔離還原 CT，還原 dump、HedgeDoc uploads volume 與 publisher DB，驗證登入、草稿圖片及發布器 health。
 - LXC 關機時，`chang929.site` 與 `media.chang929.site` 必須仍可正常讀取；只有 `edit.chang929.site` 與發布功能暫停。
 

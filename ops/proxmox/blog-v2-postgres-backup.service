@@ -1,0 +1,8 @@
+[Unit]
+Description=Create Blog v2 PostgreSQL dumps
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/blog-v2/ops/proxmox/backup-postgres.sh

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Blog v2 PostgreSQL dumps daily at 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=0
+Unit=blog-v2-postgres-backup.service
+
+[Install]
+WantedBy=timers.target
