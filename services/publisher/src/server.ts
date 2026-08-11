@@ -108,6 +108,8 @@ async function uploadDraftImage(request: FastifyRequest, source: string, slug: s
   const url = new URL(source, `https://${HEDGE_DOC_DOMAIN}`);
   const response = await fetch(`${HEDGE_DOC_URL}${url.pathname}`, { headers: { cookie: requestCookie(request) } });
   if (!response.ok) throw new Error(`Unable to read draft image (${response.status})`);
+  const advertisedLength = Number(response.headers.get("content-length") ?? "0");
+  if (advertisedLength > 10 * 1024 * 1024) throw new Error("Image exceeds the 10 MB limit");
   const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? null;
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("Image exceeds the 10 MB limit");
