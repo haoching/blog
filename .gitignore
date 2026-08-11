@@ -1,0 +1,21 @@
+# Hugo build output
+/public/
+/resources/_gen/
+
+# Local secrets and runtime data
+.env
+.env.*
+!.env.example
+*.local
+
+# Tooling
+node_modules/
+dist/
+.DS_Store
+Thumbs.db
+
+# Local editor/server data
+ops/hedgedoc/data/
+ops/hedgedoc/backups/
+services/publisher/.data/
+*.log

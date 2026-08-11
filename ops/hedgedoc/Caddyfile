@@ -1,0 +1,11 @@
+:8080 {
+  encode gzip
+
+  @publisher path_regexp publisher ^/[^/]+/publish(?:/.*)?$
+  reverse_proxy @publisher publisher:3000
+
+  reverse_proxy hedgedoc:3000 {
+    header_up X-Forwarded-Proto https
+    header_up X-Forwarded-Host edit.chang929.site
+  }
+}

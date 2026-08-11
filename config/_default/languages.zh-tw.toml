@@ -1,0 +1,20 @@
+disabled = false
+locale = "zh-tw"
+label = "繁體中文"
+weight = 1
+title = "haoching's site"
+
+[params]
+displayName = "繁中"
+isoCode = "zh-tw"
+rtl = false
+dateFormat = "2006 年 1 月 2 日"
+
+[params.author]
+name = "haoching"
+headline = "🔧施工中…"
+links = [
+  { link = "https://chang929.site" },
+  { github = "https://github.com/haoching" },
+  { instagram = "https://www.instagram.com/haoching929/" }
+]

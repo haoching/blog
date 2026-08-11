@@ -1,0 +1,13 @@
+{
+  "name": "haoching-blog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bash ./build.sh",
+    "preview": "wrangler dev --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.120.1"
+  }
+}
