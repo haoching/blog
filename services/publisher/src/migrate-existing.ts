@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { normalizeLegacyMarkdown } from "./markdown.js";
 import { validateFrontmatter } from "./validation.js";
 
 const env = (name: string): string => {
@@ -81,8 +82,9 @@ for (const entry of await fs.readdir(inputRoot, { withFileTypes: true })) {
   }
 
   const raw = await fs.readFile(sourcePath, "utf8");
-  const validated = validateFrontmatter(raw);
-  const parsed = matter(raw);
+  const normalizedRaw = normalizeLegacyMarkdown(raw);
+  const validated = validateFrontmatter(normalizedRaw);
+  const parsed = matter(normalizedRaw);
   const replacements = new Map<string, string>();
   const markdownImage = /!\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/g;
   for (const match of parsed.content.matchAll(markdownImage)) {
@@ -92,7 +94,7 @@ for (const entry of await fs.readdir(inputRoot, { withFileTypes: true })) {
     }
   }
 
-  let content = parsed.content.replace(/^(\s*```[a-z0-9_-]*)!\s*$/gim, "$1");
+  let content = parsed.content;
   for (const [source, target] of replacements) content = content.replaceAll(source, target);
 
   if (typeof parsed.data.featureimage === "string" && parsed.data.featureimage && isLocalImage(parsed.data.featureimage)) {
