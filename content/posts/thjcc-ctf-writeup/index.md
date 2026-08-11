@@ -1,14 +1,21 @@
 ---
-title: "THJCC CTF Writeup"
-slug: "thjcc-ctf-writeup"
-date: 2025-07-25
+title: THJCC CTF Writeup
+slug: thjcc-ctf-writeup
+date: 2025-07-25T00:00:00.000Z
 draft: false
-description: "THJCC CTF challenge writeup."
-tags: ["ctf", "writeups"]
-categories: ["Security"]
-authors: ["haoching"]
+description: THJCC CTF challenge writeup.
+tags:
+  - ctf
+  - writeups
+categories:
+  - Security
+authors:
+  - haoching
 aliases:
-  - "/posts/1753471431157-thjcc-ctf/"
+  - /posts/1753471431157-thjcc-ctf/
+featureimage: >-
+  https://media.chang929.site/posts/thjcc-ctf-writeup/ec4a7a23dddc94bccbda2b92d4f08e5db478e04b4e4bc2758fc0009e599ecc0c.png
+lastmod: '2026-08-11T15:01:47.715Z'
 ---
 
 # THJCC writeup
@@ -17,7 +24,7 @@ aliases:
 
 ## Baby C
 
-![alt text](image.png)
+![alt text](https://media.chang929.site/posts/thjcc-ctf-writeup/325dedb0fb3074e0ded94d747ed1c23c3f0d4acf5eab8b68e61043bd1ad7b7ce.png)
 
 把 a[] 全部再 xor 一次 120 得到 flag
 
@@ -27,7 +34,7 @@ aliases:
 
 ## baseball
 
-```!
+```
         0010172a 75 0c           JNZ        LAB_00101738
         0010172c b8 00 00        MOV        EAX,0x0
                  00 00
@@ -98,7 +105,7 @@ conn.interactive()
 
 用 ghidra 看到 win 函式裡面會 call system("sh") 用 buffer overflow 直接把 return address 蓋成 0x401216 會遇到對齊的問題所以在前面加一個 ret。
 
-![alt text](image-1.png)
+![alt text](https://media.chang929.site/posts/thjcc-ctf-writeup/a74e2ed66333a0db1c26ca43958203a506862f2b832a72ea4e102cc16b7482cd.png)
 
 ```python
 from pwn import *
@@ -127,7 +134,7 @@ p.interactive()
 
 發現 e 很小所以直接開三方
 
-```python!
+```python
 from gmpy2 import *
 from Crypto.Util.number import *
 
