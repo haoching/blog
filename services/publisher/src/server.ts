@@ -234,7 +234,6 @@ async function publishNote(request: FastifyRequest, noteId: string, expectedHash
     return publishResult(noteId, publication.slug, publication.last_commit_sha);
   }
   const now = new Date();
-  const firstPublishedAt = publication?.first_published_at ?? now;
   const article = buildPublicationArticle(raw, publication, now);
   const prepared = await prepareImages(request, article.raw, article.slug, true);
   const repoPath = `content/posts/${article.slug}/index.md`;
@@ -282,7 +281,7 @@ async function publishNote(request: FastifyRequest, noteId: string, expectedHash
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (note_id) DO UPDATE SET slug = EXCLUDED.slug, repo_path = EXCLUDED.repo_path,
       last_published_at = EXCLUDED.last_published_at, source_hash = EXCLUDED.source_hash,
-      last_commit_sha = EXCLUDED.last_commit_sha`, [noteId, article.slug, repoPath, firstPublishedAt, now, sourceHash, commitSha]);
+      last_commit_sha = EXCLUDED.last_commit_sha`, [noteId, article.slug, repoPath, article.firstPublishedAt, now, sourceHash, commitSha]);
   return publishResult(noteId, article.slug, commitSha);
 }
 

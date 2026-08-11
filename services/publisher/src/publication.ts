@@ -25,18 +25,22 @@ export function buildPublicationArticle(
   raw: string,
   publication: ExistingPublication | undefined,
   now: Date,
-): { raw: string; slug: string; title: string } {
+): { raw: string; slug: string; title: string; firstPublishedAt: Date } {
   const parsed = validateFrontmatter(raw);
-  const firstPublishedAt = publication?.first_published_at ?? now;
   const data = { ...parsed.data };
+  const sourceDate = data.date instanceof Date
+    ? data.date
+    : typeof data.date === "string" || typeof data.date === "number"
+      ? new Date(data.date)
+      : undefined;
+  const validSourceDate = sourceDate && !Number.isNaN(sourceDate.getTime()) ? sourceDate : undefined;
+  const firstPublishedAt = publication?.first_published_at ?? validSourceDate ?? now;
   data.title = parsed.title;
   data.slug = parsed.slug;
   data.tags = stringArray(data.tags);
   data.categories = stringArray(data.categories);
   data.authors = stringArray(data.authors).length ? stringArray(data.authors) : ["haoching"];
-  data.date = publication?.first_published_at
-    ? publication.first_published_at.toISOString()
-    : (data.date ?? firstPublishedAt.toISOString());
+  data.date = firstPublishedAt.toISOString();
   data.lastmod = now.toISOString();
   data.draft = false;
   if (publication?.slug && publication.slug !== parsed.slug) {
@@ -45,5 +49,5 @@ export function buildPublicationArticle(
     if (!aliases.includes(oldAlias)) aliases.push(oldAlias);
     data.aliases = aliases;
   }
-  return { raw: matter.stringify(parsed.content, data), slug: parsed.slug, title: parsed.title };
+  return { raw: matter.stringify(parsed.content, data), slug: parsed.slug, title: parsed.title, firstPublishedAt };
 }
