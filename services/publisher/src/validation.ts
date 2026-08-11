@@ -20,7 +20,12 @@ export function validateFrontmatter(raw: string): { data: Record<string, unknown
   if (!slugIsValid(slug)) errors.push("slug must use lowercase English letters, numbers, and hyphens");
   if (data.tags !== undefined && !Array.isArray(data.tags) && typeof data.tags !== "string") errors.push("tags must be an array");
   if (data.categories !== undefined && !Array.isArray(data.categories) && typeof data.categories !== "string") errors.push("categories must be an array");
-  const hedgeDocOnly = [/^\s*\[toc\]\s*$/i, /^\s*<!--\s*(?:slide|\.element:)/i, /^\s*@import\s+/i];
+  const hedgeDocOnly = [
+    /^\s*\[toc\]\s*$/i,
+    /^\s*<!--\s*(?:slide|\.element:)/i,
+    /^\s*@import\s+/i,
+    /^\s*```[a-z0-9_-]*!\s*$/i,
+  ];
   for (const [index, line] of parsed.content.split(/\r?\n/).entries()) {
     if (hedgeDocOnly.some((pattern) => pattern.test(line))) errors.push(`HedgeDoc-only syntax at line ${index + 1}; use a Hugo/Blowfish equivalent`);
   }

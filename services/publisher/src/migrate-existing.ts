@@ -92,7 +92,7 @@ for (const entry of await fs.readdir(inputRoot, { withFileTypes: true })) {
     }
   }
 
-  let content = parsed.content;
+  let content = parsed.content.replace(/^(\s*```[a-z0-9_-]*)!\s*$/gim, "$1");
   for (const [source, target] of replacements) content = content.replaceAll(source, target);
 
   if (typeof parsed.data.featureimage === "string" && parsed.data.featureimage && isLocalImage(parsed.data.featureimage)) {
