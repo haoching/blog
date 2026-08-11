@@ -35,6 +35,17 @@ account. The preview environment uses the same account with a separate Worker na
 - `ops/proxmox/README.md` covers the VLAN 10 LXC, Docker nesting and backup/restore schedule.
 - `ops/github/README.md` covers the least-privilege publisher GitHub App and `v2` → `master` flow.
 
-The implementation is currently on local branch `v2` in the clean clone
-`C:\Users\user\Projects\blog-v2`, with the legacy source preserved as tag
-`legacy-2025`. It has not been pushed or deployed remotely.
+## Deployed inventory
+
+The v2 implementation was deployed on 2026-08-12:
+
+- Production blog: `https://chang929.site/` (`blog` Worker, `master` branch)
+- Preview blog: `https://blog-preview.haoching929.workers.dev/` (`v2` branch)
+- Editor: `https://edit.chang929.site/` (Cloudflare Access + HedgeDoc GitHub OAuth)
+- Published media: `https://media.chang929.site/` (private-write R2 bucket with a public custom domain)
+- Editor host: Proxmox CT `113`, `192.168.10.22/24`, repository at `/opt/blog-v2`
+- Clean Windows clone: `C:\Users\user\Projects\blog-v2`
+
+The legacy source is preserved as tag `legacy-2025`. GitHub Actions is the only
+Cloudflare Worker deployment path; the redundant Cloudflare Git build integration is
+intentionally disconnected.

@@ -2,6 +2,8 @@
 
 目標是 Proxmox VLAN 10 的非特權 Ubuntu 24.04 LTS LXC。預設值：CT `109`、`192.168.10.22/24`、gateway `192.168.10.1`、2 vCPU、2 GB RAM、24 GB 磁碟、Docker nesting。建立前若 ID 或 IP 已占用，就依序選下一個可用值，不要覆蓋既有 CT。
 
+實際部署（2026-08-12）使用 CT `113`（名稱 `blog-editor`）、`192.168.10.22/24`，repository 位於 `/opt/blog-v2`。PostgreSQL dump timer 每天 03:00 執行；Proxmox backup job `blog-v2-daily` 每天 03:30 執行。
+
 ## 建立前檢查
 
 在 Proxmox shell 先確認資源與網路：

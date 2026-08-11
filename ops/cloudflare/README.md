@@ -2,6 +2,8 @@
 
 這份 runbook 是給 `chang929.site` 正式上線使用。所有指令都應在確認帳戶、zone 與資源 ID 後執行；不要把 API token、Tunnel token 或 R2 secret 寫入 Git。
 
+實際部署（2026-08-12）已啟用 `blog`、`blog-preview`、R2 bucket `blog-media`、`media.chang929.site`、`edit.chang929.site` Tunnel 與 Access。Worker 只由 GitHub Actions + Wrangler 部署；Cloudflare Git 直接建置已停用，避免重複或失敗的外部 PR check。
+
 ## 1. 部落格 Worker
 
 在 `haoching/blog` 建立兩個 Worker：
