@@ -1,10 +1,12 @@
 [[main]]
 name = "About Me"
+title = "About Me"
 url = "/about/"
 weight = 20
 
 [[main]]
 name = "Posts"
+title = "Posts"
 url = "/posts/"
 weight = 30
 
