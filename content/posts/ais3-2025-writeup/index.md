@@ -1,7 +1,8 @@
 ---
 title: 2025 AIS3 Pre-Exam Writeup
 slug: ais3-2025-writeup
-date: 2025-07-25T00:00:00.000Z
+date: '2025-07-25T00:00:00.000Z'
+showDateUpdated: false
 draft: false
 description: AIS3 2025 pre-exam challenge writeup.
 tags:
@@ -16,7 +17,7 @@ aliases:
   - /posts/1753445505053-example/
 featureimage: >-
   https://media.chang929.site/posts/ais3-2025-writeup/ec4a7a23dddc94bccbda2b92d4f08e5db478e04b4e4bc2758fc0009e599ecc0c.png
-lastmod: '2026-08-11T15:01:38.577Z'
+lastmod: '2026-08-30T21:37:38.466Z'
 ---
 # 2025 ais3 pre-exam write-up
 
