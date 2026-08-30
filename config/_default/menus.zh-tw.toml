@@ -1,10 +1,10 @@
 [[main]]
-name = "關於我"
+name = "About Me"
 pageRef = "about"
 weight = 20
 
 [[main]]
-name = "文章"
+name = "Posts"
 pageRef = "posts"
 weight = 30
 
