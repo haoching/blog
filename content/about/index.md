@@ -1,13 +1,14 @@
 ---
-title: "關於我"
-page: "about"
-description: "haoching"
+title: 關於我
+page: about
+description: haoching
 showDate: false
 showAuthor: false
 showReadingTime: false
 showWordCount: false
 showTableOfContents: true
 draft: false
+lastmod: '2026-08-30T20:17:20.937Z'
 ---
 
 {{< figure src="img/rabbit.jpg" alt="rabbit" >}}
