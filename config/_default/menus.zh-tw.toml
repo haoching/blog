@@ -1,11 +1,11 @@
 [[main]]
 name = "About Me"
-pageRef = "about"
+url = "/about/"
 weight = 20
 
 [[main]]
 name = "Posts"
-pageRef = "posts"
+url = "/posts/"
 weight = 30
 
 [[main]]
