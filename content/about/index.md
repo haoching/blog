@@ -8,14 +8,13 @@ showReadingTime: false
 showWordCount: false
 showTableOfContents: true
 draft: false
-lastmod: '2026-08-30T20:17:20.937Z'
+lastmod: '2026-08-30T20:24:39.018Z'
 ---
 
 {{< figure src="img/rabbit.jpg" alt="rabbit" >}}
 
-一個因為染上劍道，變得很少在資訊圈活動的學生，[734m_N4M3_h3r3](https://ctftime.org/team/301288) 成員。大概這樣，想不到要介紹甚麼。
+一個很喜歡到處打比賽和做一些小專案的資工系學生，[734m_N4M3_h3r3](https://ctftime.org/team/301288) 成員，因為染上劍道，變得比較少在資安圈活動。大概這樣，想不到要介紹甚麼。
 
-因為沒什麼常用的綽號，所以在各個地方的 ID 都不一樣。反正比賽也沒在 leaderboard 前面出現，等到常打進前幾名，再煩惱要叫甚麼名字好了……
 
 ## 經歷
 
@@ -29,6 +28,7 @@ lastmod: '2026-08-30T20:17:20.937Z'
 - AIS3 2024 最佳專題 — RASP: RASP A Safer Python
 - AIS3 2025 最佳專題 — 進階資安攻防競技
 - AIS3 Junior 2026 TA
+- 清大劍道社 社長
 
 ## 聯絡方式
 
